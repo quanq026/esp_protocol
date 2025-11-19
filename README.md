@@ -176,3 +176,182 @@ void loop() {
 | GET         | /api/sensor      | Lấy trạng thái LED | {"led":1}                       |
 | POST        | /api/led?state=1 | Bật LED            | curl -X POST IP/api/led?state=1 |
 | POST        | /api/led?state=0 | Tắt LED            | curl -X POST IP/api/led?state=0 |
+
+
+# Bài tập 3: WebSocket (Realtime)
+Dự án điều khiển **NeoPixel LED** trên ESP32-S3 **thời gian thực** bằng **WebSocket**.
+Hỗ trợ:
+- WebSocket server (cổng 81)
+- Gửi/nhận JSON siêu nhẹ với ArduinoJson
+- Broadcast trạng thái LED tới mọi client
+- Giao diện + log realtime
+- Tự động reconnect Wi-Fi
+
+## Phần cứng yêu cầu
+- ESP32 (trong dự án này dùng esp32-s3 để điều khiển led onborad GPIO48)
+
+## Thư viện cần cài
+Arduino IDE → Library Manager:
+- `Adafruit NeoPixel` by Adafruit
+- `WiFi` và `WebServer` (đã có sẵn trong ESP32 core)
+
+## Mã nguồn hoàn chỉnh
+
+```cpp
+#include <WiFi.h>
+#include <WebServer.h>
+#include <WebSocketsServer.h>
+#include <ArduinoJson.h>
+#include <Adafruit_NeoPixel.h>
+
+#define LED_PIN 48
+#define LED_COUNT 1
+
+Adafruit_NeoPixel led(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
+bool ledState = false;
+
+const char* WIFI_SSID = "W_I_F_I";
+const char* WIFI_PASS = "P_A_S_S";
+
+WebServer server(80);
+WebSocketsServer ws(81);
+
+// WebSocket
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t* payload, size_t length) {
+  if (type == WStype_CONNECTED) {
+    Serial.printf("Client [%u] connected\n", num);
+    // Gửi trạng thái hiện tại
+    ws.sendTXT(num, "{\"led\":" + String(ledState ? 1 : 0) + "}");
+  }
+  else if (type == WStype_TEXT) {
+    Serial.printf("Received: %s\n", payload);
+    
+    // Parse JSON
+    StaticJsonDocument<100> doc;
+    deserializeJson(doc, payload);
+    
+    if (doc.containsKey("led")) {
+      ledState = (doc["led"] == 1);
+      
+      // Led control
+      if (ledState)
+        led.setPixelColor(0, led.Color(0, 255, 40));
+      else
+        led.clear();
+      led.show();
+      
+      // Gửi status
+      String response = "{\"led\":" + String(ledState ? 1 : 0) + ",\"status\":\"ok\"}";
+      ws.broadcastTXT(response);
+    }
+  }
+}
+
+// HTML
+const char HTML[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ESP32 LED WebSocket</title>
+  <style>
+    body { font-family: Arial; text-align: center; padding: 50px; }
+    #status { font-size: 32px; margin: 20px; padding: 20px; border-radius: 10px; }
+    .on { background: #4CAF50; color: white; }
+    .off { background: #f44336; color: white; }
+    button { font-size: 18px; padding: 15px 30px; background: #2196F3; 
+             color: white; border: none; border-radius: 5px; cursor: pointer; }
+    button:hover { background: #0b7dda; }
+    #log { background: #1e1e1e; color: #0f0; padding: 15px; margin-top: 30px;
+           height: 200px; overflow-y: auto; text-align: left; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h2>ESP32-S3 LED Control</h2>
+  <div id="status" class="off">LED: OFF</div>
+  <button onclick="toggle()">Toggle LED</button>
+  <div id="log"></div>
+
+  <script>
+    var ws = new WebSocket('ws://' + location.hostname + ':81');
+    var state = 0;
+
+    ws.onopen = function() { addLog('Connected'); };
+    ws.onclose = function() { addLog('Disconnected'); };
+    
+    ws.onmessage = function(e) {
+      addLog('Recv: ' + e.data);
+      var data = JSON.parse(e.data);
+      state = data.led;
+      updateUI();
+    };
+
+    function toggle() {
+      var msg = '{"led":' + (state ? 0 : 1) + '}';
+      ws.send(msg);
+      addLog('Send: ' + msg);
+    }
+
+    function updateUI() {
+      var el = document.getElementById('status');
+      el.textContent = 'LED: ' + (state ? 'ON' : 'OFF');
+      el.className = state ? 'on' : 'off';
+    }
+
+    function addLog(msg) {
+      var el = document.getElementById('log');
+      var time = new Date().toLocaleTimeString();
+      el.innerHTML += time + ' ' + msg + '<br>';
+      el.scrollTop = el.scrollHeight;
+    }
+  </script>
+</body>
+</html>
+)rawliteral";
+
+void setup() {
+  Serial.begin(115200);
+  
+  led.begin();
+  led.setBrightness(30);
+  led.show();
+  
+  WiFi.begin(WIFI_SSID, WIFI_PASS);
+  Serial.print("Connecting WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nIP: " + WiFi.localIP().toString());
+  
+  ws.begin();
+  ws.onEvent(webSocketEvent);
+  
+  server.on("/", []() { server.send(200, "text/html", HTML); });
+  server.begin();
+  
+  Serial.println("Ready!");
+}
+
+void loop() {
+  ws.loop();
+  server.handleClient();
+}
+```
+
+### Hướng dẫn upload và chạy code
+
+1. Mở Arduino IDE.
+2. Chọn board ESP32 (Tools > Board > ESP32 Arduino > ESP32 Dev Module).
+3. Kết nối ESP32 qua USB.
+4. Paste code vào, chỉnh `ssid` và `password` cho phù hợp với router của bạn.
+5. Upload (Ctrl+U).
+6. Mở Serial Monitor (baud 115200) để theo dõi log kết nối.
+
+## Giải thích mã nguồn
+
+### Cách sử dụng
+1. Upload code lên ESP32-S3.
+2. Mở Serial Monitor → copy địa chỉ IP (ví dụ: 192.168.1.150).
+3. Truy cập bằng trình duyệt: http://192.168.1.150
+4. Giao diện nút BẬT / TẮT → LED sẽ được hiển thị.
