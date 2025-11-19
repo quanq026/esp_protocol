@@ -44,8 +44,8 @@ Arduino IDE → Library Manager:
 Adafruit_NeoPixel led(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 bool ledState = false; // 0 = tắt, 1 = bật
 
-const char* WIFI_SSID = "VJU Student";
-const char* WIFI_PASS = "studentVJU@2022";
+const char* WIFI_SSID = "W_I_F_I";
+const char* WIFI_PASS = "P_A_S_S;
 
 WebServer server(80);
 
