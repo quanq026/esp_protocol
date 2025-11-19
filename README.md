@@ -6,7 +6,7 @@
 
 - [Bài tập 2: Web Server (HTTP)](https://github.com/quanq026/esp_protocol/blob/main/README.md#b%C3%A0i-t%E1%BA%ADp-2-web-server-http)
 
-- [Bài tập 3: WebSocket (Realtime)](https://github.com/quanq026/ESP_Wifi/blob/main/README.md#b%C3%A0i-t%E1%BA%ADp-3-esp32-dual-mode-ap--sta)
+- [Bài tập 3: WebSocket (Realtime)](https://github.com/quanq026/esp_protocol/blob/main/README.md#b%C3%A0i-t%E1%BA%ADp-3-websocket-realtime)
 
 - [Bài tập 4:...]()
 
