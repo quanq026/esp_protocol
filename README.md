@@ -39,18 +39,17 @@ Arduino IDE → Library Manager:
 #include <WebServer.h>
 #include <Adafruit_NeoPixel.h>
 
-#define LED_PIN    48        // Chân điều khiển NeoPixel
-#define LED_COUNT  1         // Số lượng LED
-
+#define LED_PIN 48
+#define LED_COUNT 1
 Adafruit_NeoPixel led(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
-bool ledState = false;       // Trạng thái LED: false = tắt, true = bật
+bool ledState = false; // 0 = tắt, 1 = bật
 
 const char* WIFI_SSID = "VJU Student";
 const char* WIFI_PASS = "studentVJU@2022";
 
 WebServer server(80);
 
-/* ====================== API ====================== */
+//api
 void handleSensor() {
   String json = "{\"led\":" + String(ledState ? 1 : 0) + "}";
   server.send(200, "application/json", json);
@@ -61,53 +60,46 @@ void handleLed() {
     server.send(400, "application/json", "{\"error\":\"missing state\"}");
     return;
   }
+
   int state = server.arg("state").toInt();
   ledState = (state == 1);
 
   if (ledState)
-    led.setPixelColor(0, led.Color(0, 255, 40));  // Màu xanh lá đẹp
+    led.setPixelColor(0, led.Color(0, 255, 40));
   else
     led.clear();
   led.show();
 
+  //JSON
   String json = "{\"led\":" + String(ledState ? 1 : 0) + "}";
   server.send(200, "application/json", json);
 }
 
-/* ====================== Trang Web ====================== */
+//web
 const char HTML_PAGE[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
-<html lang="vi">
+<html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ESP32-S3 LED Control</title>
-  <style>
-    body{font-family:Arial,sans-serif;text-align:center;margin-top:50px;background:#f0f0f0;}
-    h2{color:#2c3e50;}
-    button{padding:15px 40px;font-size:18px;cursor:pointer;background:#3498db;color:white;border:none;border-radius:10px;}
-    button:hover{background:#2980b9;}
-    #state{font-weight:bold;font-size:24px;color:#2c3e50;}
-  </style>
 </head>
-<body>
-  <h2>ESP32-S3 NeoPixel Control</h2>
-  <p>Trạng thái LED: <span id="state">?</span></p>
-  <button onclick="toggleLed()">BẬT / TẮT</button>
+<body style="text-align:center; font-family:sans-serif;">
+  <h2>ESP32-S3 LED</h2>
+  <p>Status: <span id="state">?</span></p>
+  <button onclick="toggleLed()">ON/OFF</button>
 
   <script>
-    const state = document.getElementById('state');
-
+    //update status
     async function updateLed() {
       const res = await fetch('/api/sensor');
       const data = await res.json();
-      state.innerText = data.led ? 'BẬT' : 'TẮT';
-      state.style.color = data.led ? '#27ae60' : '#c0392b';
+      state.innerText = data.led ? 'ON' : 'OFF';
     }
 
+    // POST
     async function toggleLed() {
-      const newState = state.innerText === 'BẬT' ? 0 : 1;
-      await fetch('/api/led?state=' + newState, {method: 'POST'});
+      const newState = state.innerText == 'ON' ? 0 : 1;
+      await fetch('/api/led?state=' + newState, { method: 'POST' });
       updateLed();
     }
 
@@ -122,52 +114,41 @@ void handleRoot() {
   server.send(200, "text/html", HTML_PAGE);
 }
 
-/* ====================== Tự động reconnect Wi-Fi ====================== */
 void ensureWiFi() {
-  if (WiFi.status() == WL_CONNECTED) return;
-
-  Serial.println("[WiFi] Mất kết nối! Đang thử kết nối lại...");
-  WiFi.begin(WIFI_SSID, WIFI_PASS);
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 10000) {
-    delay(500);
-    Serial.print(".");
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\n[WiFi] Đã kết nối lại! IP: " + WiFi.localIP().toString());
+  if (WiFi.status() != WL_CONNECTED) {
+    WiFi.begin(WIFI_SSID, WIFI_PASS);
+    unsigned long start = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - start < 8000)
+      delay(500);
   }
 }
 
-/* ====================== Setup & Loop ====================== */
 void setup() {
   Serial.begin(115200);
-  Serial.println("\n=== ESP32-S3 LED Web Server ===");
+  Serial.println("ESP32-S3 LED Web Server");
 
-  // Khởi động NeoPixel
   led.begin();
-  led.setBrightness(50);   // Độ sáng 0-255
+  led.setBrightness(30);
   led.show();
 
-  // Kết nối Wi-Fi lần đầu
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  Serial.print("Đang kết nối Wi-Fi");
+  Serial.print("Kết nối Wi-Fi");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\n[WiFi] Đã kết nối!");
-  Serial.print("[WiFi] IP Address: http://");
+  Serial.println();
+  Serial.print("IP ESP32: ");
   Serial.println(WiFi.localIP());
 
-  // Định tuyến web
   server.on("/", handleRoot);
   server.on("/api/sensor", HTTP_GET, handleSensor);
   server.on("/api/led", HTTP_POST, handleLed);
   server.begin();
-  Serial.println("HTTP server started!");
+  Serial.println("Web server đã sẵn sàng!");
 }
 
 void loop() {
-  ensureWiFi();       // Tự động reconnect nếu cần
-  server.handleClient();  // Xử lý request từ client
+  ensureWiFi();
+  server.handleClient();
 }
