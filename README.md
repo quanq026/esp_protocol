@@ -152,3 +152,27 @@ void loop() {
   ensureWiFi();
   server.handleClient();
 }
+```
+
+### Hướng dẫn upload và chạy code
+
+1. Mở Arduino IDE.
+2. Chọn board ESP32 (Tools > Board > ESP32 Arduino > ESP32 Dev Module).
+3. Kết nối ESP32 qua USB.
+4. Paste code vào, chỉnh `ssid` và `password` cho phù hợp với router của bạn.
+5. Upload (Ctrl+U).
+6. Mở Serial Monitor (baud 115200) để theo dõi log kết nối.
+
+## Giải thích mã nguồn
+
+### Cách sử dụng
+1. Upload code lên ESP32-S3.
+2. Mở Serial Monitor → copy địa chỉ IP (ví dụ: 192.168.1.150).
+3. Truy cập bằng trình duyệt: http://192.168.1.150
+4. Giao diện nút BẬT / TẮT → LED sẽ được hiển thị.
+### API
+| Phương thức | URL              | Mô tả              | Ví dụ                           |
+|-------------|------------------|--------------------|---------------------------------|
+| GET         | /api/sensor      | Lấy trạng thái LED | {"led":1}                       |
+| POST        | /api/led?state=1 | Bật LED            | curl -X POST IP/api/led?state=1 |
+| POST        | /api/led?state=0 | Tắt LED            | curl -X POST IP/api/led?state=0 |
